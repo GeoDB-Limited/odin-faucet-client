@@ -1,0 +1,5 @@
+{
+  "faucet": "http://localhost:5005/request",
+  "api": "http://localhost:1317",
+  "rpc": "http://localhost:26657"
+}
