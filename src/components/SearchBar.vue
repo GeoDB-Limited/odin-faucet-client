@@ -7,39 +7,22 @@
       <div class="container">
         <div class="row d-flex justify-content-center">
           <input
-            id="accountAddress"
-            type="text"
-            placeholder="odin1nnfeguq30x6nwxjhaypxymx3nulyspsuja4a2x"
-            v-model="query"
+              id="accountAddress"
+              type="text"
+              placeholder="odin1nnfeguq30x6nwxjhaypxymx3nulyspsuja4a2x"
+              v-model="query"
           />
           <button
-            type="button"
-            class="btn btn-outline-info"
-            v-on:click="onSend"
+              type="button"
+              class="btn btn-outline-info"
+              v-on:click="onSend"
           >
             Send
           </button>
         </div>
         <div class="row d-flex justify-content-center">
-          <div v-show="showErrorAlert" class="alert alert-danger" role="alert">
-            {{ errAlertText }}
-          </div>
-          <div v-show="showInfoAlert" class="alert alert-info" role="alert">
-            {{ infoAlertText }}
-          </div>
-          <div
-            v-show="showSuccessAlert"
-            class="alert alert-success"
-            role="alert"
-          >
-            {{ successAlertText }}
-          </div>
-          <div
-            v-show="showProcessAlert"
-            class="alert alert-secondary"
-            role="alert"
-          >
-            {{ processAlertText }}
+          <div v-show="alertShow" :class="'alert alert-' + alertClass" role="alert">
+            {{ alertText }}
           </div>
         </div>
       </div>
@@ -47,28 +30,28 @@
         <h3>Balances:</h3>
         <table class="table">
           <thead>
-            <tr>
-              <th scope="col">Account</th>
-              <th scope="col">Denom</th>
-              <th scope="col">Amount</th>
-            </tr>
+          <tr>
+            <th scope="col">Account</th>
+            <th scope="col">Denom</th>
+            <th scope="col">Amount</th>
+          </tr>
           </thead>
           <tbody>
-            <tr v-for="balance in balances" v-bind:key="balance.denom">
-              <th scope="row">
-                <span class="badge badge-secondary"> {{ account }} </span>
-              </th>
-              <td>
+          <tr v-for="balance in balances" v-bind:key="balance.denom">
+            <th scope="row">
+              <span class="badge badge-secondary"> {{ account }} </span>
+            </th>
+            <td>
                 <span :class="'badge badge-' + badges.next()">{{
-                  balance.denom
-                }}</span>
-              </td>
-              <td class="amount">
+                    balance.denom
+                  }}</span>
+            </td>
+            <td class="amount">
                 <span class="badge badge-light">{{
-                  new Intl.NumberFormat("en-US").format(balance.amount)
-                }}</span>
-              </td>
-            </tr>
+                    new Intl.NumberFormat("en-US").format(balance.amount)
+                  }}</span>
+            </td>
+          </tr>
           </tbody>
         </table>
       </div>
@@ -77,11 +60,11 @@
 </template>
 
 <script>
-import { Badges } from "../common/badges.js";
-import { balances } from "../common/balances.js";
-import { txByHash } from "../common/querier.js";
-import { AccountNotFoundException } from "../common/errors.js";
-import { sendTokens } from "../common/faucet.js";
+import {Badges} from "@/common/badges";
+import {balances} from "@/common/balances";
+import {txByHash} from "@/common/querier";
+import {AccountNotFoundException} from "@/common/errors";
+import {sendTokens} from "@/common/faucet";
 
 export default {
   name: "SearchBar",
@@ -92,14 +75,9 @@ export default {
       balances: null,
       badges: new Badges([]),
       showBalances: false,
-      showErrorAlert: false,
-      showInfoAlert: false,
-      showSuccessAlert: false,
-      showProcessAlert: false,
-      errAlertText: "",
-      infoAlertText: "",
-      successAlertText: "",
-      processAlertText: "",
+      alertShow: false,
+      alertText: "",
+      alertClass: "",
       timer: null,
       txHash: "",
     };
@@ -107,78 +85,66 @@ export default {
   methods: {
     async onSend() {
       clearInterval(this.timer);
-      this.resetHidden();
+      this.setAlert(false);
       this.txHash = "";
 
-      try {
-        await this.fetchBalancesList();
-      } catch {
-        // error logged already, we just should try to send tokens
-        return;
-      }
+      const [alertShow, alertClass, alertText] = await this.fetchBalancesList();
+      this.setAlert(alertShow, alertClass, alertText);
 
-      try {
-        this.showProcessAlert = true;
-        this.processAlertText = "Status: sending tokens in progress...";
+      try { // make sure send tokens doesn't fail
+        this.setAlert(true, "secondary", "Status: sending tokens in progress...");
         const res = await sendTokens(this.query);
-        this.showProcessAlert = false;
-        this.showInfoAlert = true;
-        this.infoAlertText =
-          "Status: tokens sent, wait for the transaction approval";
+        this.setAlert(true, "info", "Status: tokens sent, wait for the transaction approval");
+
         this.txHash = res.data.txHash;
-        this.timer = setInterval(this.fetchBalancesList, 5000);
+        this.timer = setInterval(async () => {
+          const [alertShow, alertClass, alertText] = await this.fetchBalancesList();
+          this.setAlert(alertShow, alertClass, alertText);
+        }, 5000);
       } catch (err) {
-        this.errAlertText = "Error: failed to send tokens";
-        this.showErrorAlert = true;
+        this.setAlert(true, "danger", "Error: failed to send tokens");
         console.log("failed to send tokens");
-      } finally {
-        this.showProcessAlert = false;
       }
     },
     async fetchBalancesList() {
-      this.resetHidden();
-
       this.account = this.query;
-      if (this.account == "") {
-        this.errAlertText = "Error: account not found";
-        this.showErrorAlert = true;
+      if (this.account === "") {
         console.log("account not found");
-        throw new AccountNotFoundException();
+        return [false, "danger", "Error: account not found"];
       }
 
-      try {
+      try { // make sure get balances doesn't fail
         this.balances = await balances(this.account);
         this.showBalances = true;
         this.badges = new Badges(["success", "warning"]);
 
-        if (this.txHash != "") {
+        if (this.txHash !== "") {
           const tx = await txByHash(this.txHash);
 
-          if (tx.code == 0) {
+          console.log(tx.code);
+          if (tx.code === 0) {
             clearInterval(this.timer);
-            this.successAlertText = "Status: success, transaction submitted";
-            this.showSuccessAlert = true;
+            return [true, "success", "Status: success, transaction submitted"];
           }
+          return [true, "danger", "Error: transaction failed"];
         }
+        return [false, "", ""];
       } catch (err) {
         if (err instanceof AccountNotFoundException) {
-          this.errAlertText = "Error: account not found";
-          this.showErrorAlert = true;
-          console.log("account not found");
+          return [true, "danger", "Error: account not found"];
         } else {
           console.log("something bad happened");
+          return [true, "danger", "Error: something bad happened"];
         }
-        throw err;
       }
     },
     cancelAutoUpdate() {
       clearInterval(this.timer);
     },
-    resetHidden() {
-      this.showInfoAlert = false;
-      this.showErrorAlert = false;
-      this.showSuccessAlert = false;
-      this.showBalances = false;
+    setAlert(alertShow, alertClass = "", alertText = "") {
+      this.alertShow = alertShow;
+      this.alertClass = alertClass;
+      this.alertText = alertText
     },
   },
   beforeDestroy() {
@@ -205,15 +171,18 @@ button {
   font-size: 10pt;
   font-weight: 700;
 }
+
 /* label {
     padding: 10px;
 } */
 #accountAddress {
   margin-bottom: 3%;
 }
+
 .amount {
   font-style: italic;
 }
+
 .search-bar {
   min-height: 100%;
 }
