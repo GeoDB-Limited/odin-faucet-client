@@ -1,5 +1,5 @@
 {
-  "faucet": "http://localhost:5005/request",
-  "api": "http://localhost:1317",
-  "rpc": "http://localhost:26657"
+  "faucet": "http://34.77.171.169:5005/request",
+  "api": "http://34.77.171.169:1317",
+  "rpc": "http://34.77.171.169:26657"
 }

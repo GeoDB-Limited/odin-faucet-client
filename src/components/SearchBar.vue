@@ -6,6 +6,10 @@
       <!-- <label for="accountAddress">Account address: </label> -->
       <div class="container">
         <div class="row d-flex justify-content-center">
+          <select class="custom-select col-2 coin-select" v-model="denom">
+            <option value="loki" selected>Loki</option>
+            <option value="minigeo">Minigeo</option>
+          </select>
           <input
               id="accountAddress"
               type="text"
@@ -72,6 +76,7 @@ export default {
     return {
       account: "",
       query: "",
+      denom: "loki",
       balances: null,
       badges: new Badges([]),
       showBalances: false,
@@ -93,16 +98,22 @@ export default {
 
       try { // make sure send tokens doesn't fail
         this.setAlert(true, "secondary", "Status: sending tokens in progress...");
-        const res = await sendTokens(this.query);
+        const res = await sendTokens(this.account, this.denom);
         this.setAlert(true, "info", "Status: tokens sent, wait for the transaction approval");
-
         this.txHash = res.data.txHash;
         this.timer = setInterval(async () => {
           const [alertShow, alertClass, alertText] = await this.fetchBalancesList();
           this.setAlert(alertShow, alertClass, alertText);
         }, 5000);
       } catch (err) {
-        this.setAlert(true, "danger", "Error: failed to send tokens");
+        console.log(err.message)
+        if (err.data.error !== undefined) {
+          if (err.data.time !== undefined) {
+            this.setAlert(true, "warning", `Status: tokens limit per period reached, pending time left: ${new Date(err.data.time * 1000).toISOString().substr(11, 8)}`);
+          } else {
+            this.setAlert(true, "danger", err.data.error);
+          }
+        }
         console.log("failed to send tokens");
       }
     },
@@ -144,7 +155,7 @@ export default {
     setAlert(alertShow, alertClass = "", alertText = "") {
       this.alertShow = alertShow;
       this.alertClass = alertClass;
-      this.alertText = alertText
+      this.alertText = alertText;
     },
   },
   beforeDestroy() {
@@ -187,7 +198,10 @@ button {
   min-height: 100%;
 }
 
-.alert {
-  width: 60%;
+.coin-select {
+  margin-right: 15px;
+  border: #000 2px solid;
+  border-radius: 7px;
+  font-weight: 700;
 }
 </style>
